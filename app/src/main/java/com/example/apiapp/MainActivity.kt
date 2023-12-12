@@ -3,7 +3,7 @@ package com.example.apiapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Card
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,11 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.koin.androidx.viewmodel.ext.android.getViewModel
 
 
@@ -41,27 +43,39 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val state by viewModel.movieScreenUiState.collectAsState()
             MovieContent(
-                filmName = remember(state.filmName) { state.filmName },
-                onFilmNameChange = remember {
-                    {
-                        viewModel.onFilmNameChange(it)
-                    }
-                },
                 genre = remember(state.genre) { state.genre },
                 onGenreChange = remember {
                     {
                         viewModel.onGenreChange(it)
                     }
                 },
+                number = remember(state.number) { state.number },
+                onNumberChanged = remember {
+                    { newNumber ->
+                        viewModel.onNumberChanged(newNumber)
+                    }
+                },
                 onGetMoviesClicked = remember {
-                    {
+                    { genre, number, startDate, endDate ->
                         scope.launch {
-                            viewModel.getMovies()
+                            viewModel.getMovies(genre, number, startDate, endDate)
                         }
                     }
                 },
-                movies = remember(state.movies) { state.movies }
-            )
+                movies = remember(state.movies) { state.movies },
+                startDate = remember(state.startDateTime) { state.startDateTime },
+                onStartDateChanged = remember {
+                    { newDate ->
+                        viewModel.onStartDateChanged(newDate)
+                    }
+                },
+                endDate = remember(state.endDate) { state.endDate },
+                onEndDateChanged = remember {
+                    { newDate ->
+                        viewModel.onEndDateChanged(newDate)
+                    }
+                },
+                )
         }
     }
 }
@@ -69,13 +83,19 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieContent(
-    filmName: String?,
-    onFilmNameChange: (String) -> Unit,
-
     genre: String?,
     onGenreChange: (String) -> Unit,
 
-    onGetMoviesClicked: () -> Unit,
+    number: Int?,
+    onNumberChanged: (String) -> Unit,
+
+    startDate: Int?,
+    onStartDateChanged: (String) -> Unit,
+
+    endDate: Int?,
+    onEndDateChanged: (String) -> Unit,
+
+    onGetMoviesClicked: (String?, Int?, Int?, Int?) -> Unit,
     movies: List<Movie>
 ) {
     Column(
@@ -84,44 +104,53 @@ fun MovieContent(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
+        Row (
+            modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                modifier = Modifier.weight(1f),
-                label = { Text("Название") },
-                value = filmName ?: "",
-                onValueChange = onFilmNameChange
+                modifier = Modifier.weight(3f),
+                label = { Text("Жанр") },
+                value = genre ?: "",
+                onValueChange = onGenreChange,
             )
             Spacer(modifier = Modifier.size(8.dp))
             OutlinedTextField(
                 modifier = Modifier.weight(1f),
-                label = { Text("Жанр") },
-                value = genre ?: "",
-                onValueChange = onGenreChange
+                label = { Text("Кол-во") },
+                value = number?.toString() ?: "",
+                onValueChange = onNumberChanged,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
         }
-        Spacer(modifier = Modifier.height(20.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+        Spacer(modifier = Modifier.size(8.dp))
+
+        Row (
+            modifier = Modifier.fillMaxWidth()
         ) {
-            OutlinedButton(
-                onClick = { /*TODO*/ }
-            ) {
-                Text("Найти по названию")
-            }
-            OutlinedButton(
-                onClick = { /*TODO*/ }
-            ) {
-                Text("Найти по жанру")
-            }
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                label = { Text("от") },
+                value = startDate?.toString() ?: "",
+                onValueChange = onStartDateChanged,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            OutlinedTextField(
+                modifier = Modifier.weight(1f),
+                label = { Text("до") },
+                value = endDate?.toString() ?: "",
+                onValueChange = onEndDateChanged,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
         }
+
         Spacer(modifier = Modifier.height(20.dp))
         OutlinedButton(
-            onClick = onGetMoviesClicked
+            onClick = {
+                onGetMoviesClicked(genre, number, startDate, endDate)
+            }
         ) {
-            Text("Найти 100 фильмов")
+            Text("Найти фильмы")
         }
         Spacer(modifier = Modifier.height(20.dp))
         MovieList(movies)
@@ -132,18 +161,23 @@ fun MovieContent(
 fun MovieList(movies: List<Movie>) {
     LazyColumn {
         items(movies.size) { index ->
-            Card(
+            Row(
                 modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth(),
             ) {
+                Image(
+                    painter = rememberAsyncImagePainter(model = movies[index].photoUrl),
+                    contentDescription = "Постер фильма",
+                    modifier = Modifier.size(128.dp)
+                )
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Название:")
                     Text(text = movies[index].title)
-                    Text(text = movies[index].releaseDate)
-                    Text(text = movies[index].rating.toString())
-                    Text(text = movies[index].overview)
+                    Text("Год выхода: ${movies[index].releaseYear}")
                 }
             }
+            Divider()
         }
     }
 }
@@ -152,11 +186,15 @@ fun MovieList(movies: List<Movie>) {
 @Composable
 fun MovieContentPreview() {
     MovieContent(
-        filmName = "Пират Карибского моря",
-        onFilmNameChange = {},
         genre = "",
         onGenreChange = {},
-        onGetMoviesClicked = {},
-        movies = emptyList()
+        number = 1,
+        onNumberChanged = {},
+        onGetMoviesClicked = {g, n, s, e ->},
+        movies = emptyList(),
+        startDate = null,
+        endDate = null,
+        onStartDateChanged = {},
+        onEndDateChanged = {}
     )
 }

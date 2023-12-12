@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.apiapp"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 33
         versionCode = 1
         versionName = "1.0"
@@ -84,6 +84,14 @@ dependencies {
     implementation("io.insert-koin:koin-core")
     implementation("io.insert-koin:koin-android")
     implementation("io.insert-koin:koin-androidx-compose")
+
+    // Material Dialogs
+    implementation("io.github.vanpra.compose-material-dialogs:core:0.9.0")
+    implementation("io.github.vanpra.compose-material-dialogs:datetime:0.9.0")
+
+    implementation("io.coil-kt:coil-compose:2.0.0-rc01")
+    implementation("com.squareup.moshi:moshi:1.9.3")
+
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
